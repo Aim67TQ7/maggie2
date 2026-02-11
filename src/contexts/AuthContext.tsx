@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   type ReactNode,
 } from 'react';
@@ -28,19 +29,22 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function storedUser(): MaggieUser | null {
-  if (typeof window === 'undefined') return null;
-  if (localStorage.getItem(STORAGE_KEY) !== 'true') return null;
-  const name = localStorage.getItem(NAME_KEY) || 'Bunting User';
-  const email = localStorage.getItem(EMAIL_KEY) || 'user@buntingmagnetics.com';
-  return { id: '1', email, name, role: 'admin' };
-}
-
 // --- Provider ---
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<MaggieUser | null>(storedUser);
+  const [user, setUser] = useState<MaggieUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Hydrate from localStorage on client only
+  useEffect(() => {
+    if (localStorage.getItem(STORAGE_KEY) === 'true') {
+      const name = localStorage.getItem(NAME_KEY) || 'Bunting User';
+      const email = localStorage.getItem(EMAIL_KEY) || 'user@buntingmagnetics.com';
+      setUser({ id: '1', email, name, role: 'admin' });
+    }
+    setIsLoading(false);
+  }, []);
 
   const isAuthenticated = user !== null;
 
@@ -54,8 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(STORAGE_KEY, 'true');
     localStorage.setItem(NAME_KEY, finalName);
     localStorage.setItem(EMAIL_KEY, finalEmail);
-    const newUser: MaggieUser = { id: '1', email: finalEmail, name: finalName, role: 'admin' };
-    setUser(newUser);
+    setUser({ id: '1', email: finalEmail, name: finalName, role: 'admin' });
     setError(null);
     return {};
   }, []);
@@ -78,7 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, isAuthenticated, isLoading: false, error, login, logout, hasRole }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, error, login, logout, hasRole }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,10 +5,19 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function HomePage() {
-  const { isAuthenticated, login, error } = useAuth();
+  const { isAuthenticated, isLoading, login, error } = useAuth();
   const router = useRouter();
   const [passcode, setPasscode] = useState('');
   const [name, setName] = useState('');
+
+  // Wait for auth hydration before rendering anything
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-8 h-8 border-3 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   // Already logged in — go to chat
   if (isAuthenticated) {
