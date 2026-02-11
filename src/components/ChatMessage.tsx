@@ -89,13 +89,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
   );
 }
 
-// Streaming Message (partial content with animation)
+// Streaming Message with status bar
 export function StreamingMessage({
   content,
   agents,
+  statusMessage,
 }: {
   content: string;
   agents: string[];
+  statusMessage: string;
 }) {
   return (
     <div className="flex gap-3 px-4 py-3 justify-start">
@@ -103,6 +105,14 @@ export function StreamingMessage({
         M
       </div>
       <div className="max-w-[75%]">
+        {/* Status Bar */}
+        {!content && statusMessage && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl">
+            <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+            <span className="text-sm text-blue-700 font-medium">{statusMessage}</span>
+          </div>
+        )}
+
         <div className="bg-gray-100 text-gray-900 rounded-2xl rounded-bl-md px-4 py-3">
           <div className="prose prose-sm max-w-none">
             {content ? (
@@ -116,6 +126,7 @@ export function StreamingMessage({
             )}
           </div>
         </div>
+
         {/* Agent Activity Badges */}
         {agents.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mt-2">

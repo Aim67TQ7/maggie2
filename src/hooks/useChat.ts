@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef } from 'react';
-import { useChatContext } from '@/contexts/ChatContext';
+import { useChatContext, getStatusMessage } from '@/contexts/ChatContext';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Message, Conversation } from '@/types';
 
@@ -9,6 +9,23 @@ export function useChat() {
   const { dispatch, ...state } = useChatContext();
   const { user } = useAuth();
   const abortRef = useRef<AbortController | null>(null);
+  const statusTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopStatusCycle = useCallback(() => {
+    if (statusTimerRef.current) {
+      clearInterval(statusTimerRef.current);
+      statusTimerRef.current = null;
+    }
+  }, []);
+
+  const startStatusCycle = useCallback(() => {
+    stopStatusCycle();
+    let idx = 1;
+    statusTimerRef.current = setInterval(() => {
+      dispatch({ type: 'UPDATE_STATUS', statusMessage: getStatusMessage(idx) });
+      idx++;
+    }, 3000);
+  }, [dispatch, stopStatusCycle]);
 
   const loadConversations = useCallback(async () => {
     if (!user) return;
@@ -46,9 +63,11 @@ export function useChat() {
     abortRef.current?.abort();
     abortRef.current = new AbortController();
 
+    // Add user message immediately
+    let convId = conversationId || state.activeConversationId;
+
     try {
       // Create conversation if needed
-      let convId = conversationId || state.activeConversationId;
       if (!convId) {
         const res = await fetch('/api/chat/conversations', {
           method: 'POST',
@@ -71,6 +90,9 @@ export function useChat() {
       };
       dispatch({ type: 'ADD_MESSAGE', message: userMessage });
       dispatch({ type: 'START_STREAMING' });
+
+      // Start cycling status messages
+      startStatusCycle();
 
       // Send to API with SSE
       const res = await fetch('/api/chat', {
@@ -122,6 +144,7 @@ export function useChat() {
 
               if (parsed.type === 'content') {
                 accumulated += parsed.content || '';
+                stopStatusCycle();
                 dispatch({ type: 'UPDATE_STREAM', content: accumulated, agents });
               } else if (parsed.type === 'agents') {
                 agents = parsed.agents || [];
@@ -132,7 +155,12 @@ export function useChat() {
               } else if (parsed.type === 'error') {
                 throw new Error(parsed.error || 'Stream error');
               }
-            } catch {
+            } catch (e) {
+              // Re-throw actual errors
+              if (e instanceof Error && e.message !== 'Stream error') {
+                const msg = (e as Error).message;
+                if (msg && !msg.includes('JSON')) throw e;
+              }
               // Non-JSON line, append as content
               if (data.trim()) {
                 accumulated += data;
@@ -143,12 +171,14 @@ export function useChat() {
         }
       }
 
+      stopStatusCycle();
+
       // Finalize message
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         conversationId: convId,
         role: 'assistant',
-        content: accumulated,
+        content: accumulated || 'No response received.',
         createdAt: new Date().toISOString(),
         orchestratorTaskId: taskId,
         agentsUsed: agents,
@@ -156,13 +186,17 @@ export function useChat() {
       };
       dispatch({ type: 'END_STREAMING', finalMessage: assistantMessage });
     } catch (err) {
+      stopStatusCycle();
       if ((err as Error).name === 'AbortError') return;
+
+      // Show error as an in-chat message so nothing disappears
       dispatch({
-        type: 'SET_ERROR',
-        error: (err as Error).message || 'Failed to send message',
+        type: 'STREAM_ERROR',
+        errorMessage: "Sorry, I couldn't connect to my data sources right now. This usually means the orchestrator service isn't reachable. Please try again in a moment.",
+        conversationId: convId || 'unknown',
       });
     }
-  }, [user, state.activeConversationId, dispatch]);
+  }, [user, state.activeConversationId, dispatch, startStatusCycle, stopStatusCycle]);
 
   const deleteConversation = useCallback(async (id: string) => {
     try {
@@ -174,9 +208,10 @@ export function useChat() {
   }, [dispatch]);
 
   const cancelStream = useCallback(() => {
+    stopStatusCycle();
     abortRef.current?.abort();
     dispatch({ type: 'SET_ERROR', error: null });
-  }, [dispatch]);
+  }, [dispatch, stopStatusCycle]);
 
   return {
     ...state,

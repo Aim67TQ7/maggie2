@@ -11,6 +11,7 @@ export default function ChatPage() {
     isStreaming,
     streamingContent,
     agentActivity,
+    statusMessage,
     error,
     activeConversationId,
     loadConversations,
@@ -36,21 +37,25 @@ export default function ChatPage() {
   // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent]);
+  }, [messages, streamingContent, statusMessage]);
 
   return (
     <div className="flex flex-col h-full">
       {/* Messages Area */}
       <div className="flex-1 overflow-y-auto">
         {messages.length === 0 && !isStreaming ? (
-          <EmptyState />
+          <EmptyState onSuggestionClick={sendMessage} />
         ) : (
           <div className="max-w-4xl mx-auto py-4">
             {messages.map((msg) => (
               <ChatMessage key={msg.id} message={msg} />
             ))}
             {isStreaming && (
-              <StreamingMessage content={streamingContent} agents={agentActivity} />
+              <StreamingMessage
+                content={streamingContent}
+                agents={agentActivity}
+                statusMessage={statusMessage}
+              />
             )}
             <div ref={messagesEndRef} />
           </div>
@@ -73,7 +78,7 @@ export default function ChatPage() {
         disabled={isStreaming}
         placeholder={
           isStreaming
-            ? 'Maggie is thinking...'
+            ? 'Maggie is working on it...'
             : 'Ask Maggie anything — job status, inventory, customer history...'
         }
       />
@@ -81,7 +86,7 @@ export default function ChatPage() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onSuggestionClick }: { onSuggestionClick: (msg: string) => void }) {
   return (
     <div className="flex items-center justify-center h-full">
       <div className="text-center max-w-lg px-6">
@@ -104,6 +109,7 @@ function EmptyState() {
           ].map((suggestion) => (
             <button
               key={suggestion}
+              onClick={() => onSuggestionClick(suggestion)}
               className="text-left px-4 py-3 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
             >
               {suggestion}

@@ -9,6 +9,22 @@ import {
 } from 'react';
 import type { Conversation, Message } from '@/types';
 
+// --- Status Messages ---
+
+const STATUS_MESSAGES = [
+  'Thinking about that...',
+  'Pulling up the details...',
+  'Checking the records...',
+  'Working on it...',
+  'Almost there...',
+  'Running the numbers...',
+  'Digging through the data...',
+];
+
+export function getStatusMessage(index: number): string {
+  return STATUS_MESSAGES[index % STATUS_MESSAGES.length];
+}
+
 // --- State ---
 
 interface ChatState {
@@ -19,6 +35,7 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   agentActivity: string[];
+  statusMessage: string;
   error: string | null;
 }
 
@@ -32,7 +49,9 @@ type ChatAction =
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'START_STREAMING' }
   | { type: 'UPDATE_STREAM'; content: string; agents?: string[] }
+  | { type: 'UPDATE_STATUS'; statusMessage: string }
   | { type: 'END_STREAMING'; finalMessage: Message }
+  | { type: 'STREAM_ERROR'; errorMessage: string; conversationId: string }
   | { type: 'SET_ERROR'; error: string | null };
 
 const initialState: ChatState = {
@@ -43,6 +62,7 @@ const initialState: ChatState = {
   isStreaming: false,
   streamingContent: '',
   agentActivity: [],
+  statusMessage: '',
   error: null,
 };
 
@@ -72,23 +92,46 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'SET_LOADING':
       return { ...state, isLoading: action.isLoading };
     case 'START_STREAMING':
-      return { ...state, isStreaming: true, streamingContent: '', agentActivity: [] };
+      return { ...state, isStreaming: true, streamingContent: '', agentActivity: [], statusMessage: 'Thinking about that...', error: null };
     case 'UPDATE_STREAM':
       return {
         ...state,
         streamingContent: action.content,
         agentActivity: action.agents || state.agentActivity,
+        statusMessage: action.content ? 'Responding...' : state.statusMessage,
       };
+    case 'UPDATE_STATUS':
+      return { ...state, statusMessage: action.statusMessage };
     case 'END_STREAMING':
       return {
         ...state,
         isStreaming: false,
         streamingContent: '',
         agentActivity: [],
+        statusMessage: '',
         messages: [...state.messages, action.finalMessage],
       };
+    case 'STREAM_ERROR': {
+      // Add error as an in-chat assistant message so nothing "disappears"
+      const errorMsg: Message = {
+        id: crypto.randomUUID(),
+        conversationId: action.conversationId,
+        role: 'assistant',
+        content: action.errorMessage,
+        createdAt: new Date().toISOString(),
+      };
+      return {
+        ...state,
+        isStreaming: false,
+        streamingContent: '',
+        agentActivity: [],
+        statusMessage: '',
+        error: null,
+        messages: [...state.messages, errorMsg],
+      };
+    }
     case 'SET_ERROR':
-      return { ...state, error: action.error, isLoading: false, isStreaming: false };
+      return { ...state, error: action.error, isLoading: false, isStreaming: false, statusMessage: '' };
     default:
       return state;
   }
