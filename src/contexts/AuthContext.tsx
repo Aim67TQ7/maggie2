@@ -28,10 +28,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-function isStored(): boolean {
-  return typeof window !== 'undefined' && localStorage.getItem(STORAGE_KEY) === 'true';
-}
-
 function storedUser(): MaggieUser | null {
   if (typeof window === 'undefined') return null;
   if (localStorage.getItem(STORAGE_KEY) !== 'true') return null;
